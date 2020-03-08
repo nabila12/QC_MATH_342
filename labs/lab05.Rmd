@@ -426,7 +426,7 @@ Add one final column to $X$ to bring the number of columns to 101. Then try to c
 ```{r}
 X = X[ , ncol(X) + 1]
 amod = lm(y ~ X)
-summary(anova_mod)$r.squared
+summary(amod)$r.squared
 
 ```
 
