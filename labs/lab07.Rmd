@@ -87,7 +87,7 @@ Illustrate Runge's phenomenon in this model by scatterplotting the data with $g(
 
 ```{r}
 pacman:: p_load(ggplot2)
-ggplot(, aes(x = x, y = y)) + geom_point() + geom_smooth(method = lm, formula = model, col = "red")
+ggplot(, aes(x = x, y = y)) + geom_point() + geom_smooth(method = lm, formula = model, col = "green")
 ```
 
 For the rest of this assignment, I highly recommend using the [ggplot cheat sheet](https://rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf) as a reference resource. You will see questions that say "Create the best-looking plot". Among other things you may choose to do, remember to label the axes using real English, provide a title, subtitle. You may want to pick a theme and color scheme that you like and keep that constant throughout this lab. The default is fine if you are running short of time.
