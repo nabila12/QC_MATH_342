@@ -135,7 +135,7 @@ X_train = housing_train
 X_train$sale_price = NULL
 n_train = nrow(X_train)
 
-#And fit a tree model. The default hyperparameter, the node size is $N_0 = 5$.
+# fitting a tree model:
 options(java.parameters = "-Xmx4000m")
 pacman::p_load(YARF)
 tree_mod = YARFCART(X_train, y_train, calculate_oob_error = FALSE)
