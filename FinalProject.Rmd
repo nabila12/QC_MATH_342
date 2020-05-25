@@ -1,0 +1,203 @@
+---
+title: "Final Project"
+author: "Nabila Ahmed"
+date: "May 24, 2020"
+output: html_notebook
+---
+
+Reading in the csv file 
+```{r}
+housing_data <- read.csv(file = 'housing_data_2016_2017.csv')
+head(housing_data)
+```
+
+
+Loading dplyr for Data Mungling 
+```{r}
+#pacman::p_load(dplyr)
+pacman::p_load(tidyverse, magrittr) #tidyverse is shorthard for dplyr, ggplot2, tidyr, readr and a bunch of other packages recommended for the "full" dplyr experience. Loading magrittr for special pipe operations later.
+```
+
+Casting it to use it as a Dataframe 
+```{r}
+housing_tbl = tbl_df(housing_data)  #not necessary to cast because dplyr does the conversion automatically after using any dplyr function
+housing_tbl
+```
+Loading skimr to beter visualization to anlyze the dataset better 
+```{r}
+library(skimr)
+skim(housing_tbl)
+```
+
+Dropping Features 
+```{r}
+housing_tbl%<>%
+  select(-c(HITId, HITTypeId, Title, Description, Reward, CreationTime, RequesterAnnotation,
+Expiration, AssignmentId, WorkerId, AssignmentStatus, AcceptTime, SubmitTime,
+AutoApprovalTime, ApprovalTime, LifetimeApprovalRate, Last30DaysApprovalRate, 
+Last7DaysApprovalRate,listing_price_to_nearest_1000, Keywords, NumberOfSimilarHITs, LifetimeInSeconds, RejectionTime,RequesterFeedback, MaxAssignments, AssignmentDurationInSeconds, AutoApprovalDelayInSeconds, WorkTimeInSeconds,
+url,URL,model_type,full_address_or_zip_code,date_of_sale,garage_exists))
+
+
+# dropping all the rows that doesn't have a sale_price
+housing_tbl %<>%
+   filter(!is.na(sale_price))
+
+
+housing_tbl
+
+```
+
+Reordering Columns
+```{r}
+housing_tbl%<>%
+  select(sale_price,sq_footage,coop_condo, approx_year_built, community_district_num,num_bedrooms,num_total_rooms,num_full_bathrooms,num_half_bathrooms,kitchen_type,dining_room_type, maintenance_cost,common_charges,total_taxes,pct_tax_deductibl, parking_charges, everything()) 
+
+housing_tbl
+
+
+
+```
+
+
+More data cleaning and casting 
+```{r}
+
+skim(housing_tbl)
+housing_tbl$sale_price = as.numeric(gsub("[\\$,]", "", housing_tbl$sale_price))
+housing_tbl$sale_price = as.numeric(as.character(housing_tbl$sale_price))
+
+housing_tbl$maintenance_cost = as.numeric(gsub("[\\$,]", "", housing_tbl$maintenance_cost))
+housing_tbl$maintenance_cost = as.numeric(as.character(housing_tbl$maintenance_cost))
+ 
+housing_tbl$common_charges = as.numeric(gsub("[\\$,]", "", housing_tbl$common_charges))
+housing_tbl$common_charges = as.numeric(as.character(housing_tbl$common_charges))
+
+housing_tbl$total_taxes = as.numeric(gsub("[\\$,]", "", housing_tbl$total_taxes))
+housing_tbl$total_taxes = as.numeric(as.character(housing_tbl$total_taxes))
+
+
+
+housing_tbl$parking_charges = as.numeric(gsub("[\\$,]", "", housing_tbl$parking_charges))
+housing_tbl$parking_charges = as.numeric(as.character(housing_tbl$parking_charges))
+
+```
+
+Imputing
+```{r}
+#Let's first create a matrix with $p$ columns that represents missingness
+M = tbl_df(apply(is.na(housing_tbl), 2, as.numeric))
+colnames(M) = paste("is_missing_", colnames(housing_tbl), sep = "")
+head(M)
+skim(M)
+
+
+#Some of these missing indicators are collinear because they share all the rows they are missing on. Let's filter those out:
+M %<>% 
+  select_if(function(x){sum(x) > 0})
+head(M)
+
+pacman::p_load(missForest)
+housing_tbl_imp = missForest(data.frame(housing_tbl))$ximp
+housing_tbl = cbind(housing_tbl_imp, M); rm(housing_tbl_imp, M)
+
+skim(housing_tbl)
+```
+
+
+GGPlot of Sale_Price vs. Sq_footage
+
+```{r}
+ggplot(housing_tbl) + 
+  geom_point(aes(x = sq_footage, y = sale_price))
+ggsave("Sale_Price vs. Sq_footage.png", width = 5, height = 4)
+```
+
+
+GPlot of Sale_Price vs. Sq_footage
+
+```{r}
+ggplot(housing_tbl) + 
+  geom_point(aes(x = num_total_rooms, y = sale_price))
+ggsave("Sale_Price vs. num_total_rooms.png", width = 5, height = 4)
+
+```
+
+
+Regression Tree Model - In Sample 
+```{r}
+skim(housing_tbl)
+test_prop = 0.1
+train_indices = sample(1 : nrow(housing_tbl), round((1 - test_prop) * nrow(housing_tbl)))
+housing_train = housing_tbl[train_indices, ]
+y_train = housing_train$sale_price
+X_train = housing_train
+X_train$sale_price = NULL
+n_train = nrow(X_train)
+
+#And fit a tree model. The default hyperparameter, the node size is $N_0 = 5$.
+options(java.parameters = "-Xmx4000m")
+pacman::p_load(YARF)
+tree_mod = YARFCART(X_train, y_train, calculate_oob_error = FALSE)
+
+
+illustrate_trees(tree_mod, max_depth = 4, open_file = TRUE)
+get_tree_num_nodes_leaves_max_depths(tree_mod)
+
+# in-sample fit
+y_hat_train = predict(tree_mod, housing_train)
+e = y_train - y_hat_train
+sd(e) #RMSE
+1 - sd(e) / sd(y_train)
+
+  
+```
+Regression Tree Model- Out of Sample
+```{r}
+test_indices = setdiff(1 : nrow(housing_tbl), train_indices)
+housing_test = housing_tbl[test_indices, ]
+y_test = housing_test$sale_price
+X_test = housing_test
+X_test$sale_price = NULL
+
+
+y_hat_test_tree = predict(tree_mod, housing_test)
+e = y_test - y_hat_test_tree
+sd(e)
+1 - sd(e) / sd(y_test)
+
+```
+
+OLS - in-Sample:
+```{r}
+linear_mod = lm(sale_price ~ ., housing_train)
+summary(linear_mod)$sigma 
+summary(linear_mod)$r.squared
+
+```
+
+OLS out of sample:
+```{r}
+y_hat_test_linear = predict(linear_mod, housing_test)
+e = y_test - y_hat_test_linear
+sd(e) #RMSE
+1 - sd(e) / sd(y_test) #rquared 
+```
+
+Random Forest
+```{r}
+seed = 1
+set.seed(seed)
+n_samp = 500
+housing_samp = housing_tbl %>% sample_n(n_samp)
+y = housing_samp$sale_price
+X = housing_samp %>% select(-sale_price)
+
+num_trees = 500
+mod_bag = YARFBAG(X, y, num_trees = num_trees, seed = seed)
+mod_bag
+
+mod_rf = YARF(X, y, num_trees = num_trees, seed = seed)
+mod_rf
+```
+
